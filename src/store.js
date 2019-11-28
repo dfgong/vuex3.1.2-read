@@ -77,6 +77,7 @@ export class Store {
     return this._vm._data.$$state
   }
 
+  //gongdf-直接set值会成功，会assert throw 错误信息
   set state (v) {
     if (process.env.NODE_ENV !== 'production') {
       assert(false, `use store.replaceState() to explicit replace store state.`)
@@ -92,7 +93,8 @@ export class Store {
     } = unifyObjectStyle(_type, _payload, _options)
 
     const mutation = { type, payload }
-    const entry = this._mutations[type]
+    // gongdf-type即为mutations中对应的函数名，根据type找出对应的mutations函数集合
+    const entry = this._mutations[type]  // gongdf-为什么要是一个数组？
     if (!entry) {
       if (process.env.NODE_ENV !== 'production') {
         console.error(`[vuex] unknown mutation type: ${type}`)
@@ -100,10 +102,12 @@ export class Store {
       return
     }
     this._withCommit(() => {
+      // gongdf-forEach运行mutations函数集合中的每一个函数
       entry.forEach(function commitIterator (handler) {
         handler(payload)
       })
     })
+    // gongdf-订阅该次mutation
     this._subscribers.forEach(sub => sub(mutation, this.state))
 
     if (
@@ -117,6 +121,7 @@ export class Store {
     }
   }
 
+  // gongdf-参考commit的逻辑，加上Promise处理异步即可
   dispatch (_type, _payload) {
     // check object-style dispatch
     const {
@@ -150,6 +155,7 @@ export class Store {
 
     return result.then(res => {
       try {
+        // 异步结束后订阅dispatch行为
         this._actionSubscribers
           .filter(sub => sub.after)
           .forEach(sub => sub.after(action, this.state))
@@ -219,6 +225,7 @@ export class Store {
     resetStore(this, true)
   }
 
+  // gongdf-记录本次操作是否是通过commit进行的
   _withCommit (fn) {
     const committing = this._committing
     this._committing = true
@@ -288,6 +295,7 @@ function resetStoreVM (store, state, hot) {
 
   // enable strict mode for new vm
   if (store.strict) {
+    // gongdf-严格模式下对不通过commit直接修改state的报错提示（虽然报错但依然会成功）
     enableStrictMode(store)
   }
 
@@ -439,6 +447,7 @@ function makeLocalGetters (store, namespace) {
 
 function registerMutation (store, type, handler, local) {
   const entry = store._mutations[type] || (store._mutations[type] = [])
+  // gongdf-mutations中每个type的函数储存在store._mutations中
   entry.push(function wrappedMutationHandler (payload) {
     handler.call(store, local.state, payload)
   })
@@ -487,6 +496,8 @@ function registerGetter (store, type, rawGetter, local) {
 }
 
 function enableStrictMode (store) {
+  // gongdf-利用Vue的watch进行监听$$state，store._committing判断是不是通过commit对$$state的修改，报错提示
+  // gongdf-通过commit对$$state的修改可以确保被调试工具跟踪到
   store._vm.$watch(function () { return this._data.$$state }, () => {
     if (process.env.NODE_ENV !== 'production') {
       assert(store._committing, `do not mutate vuex store state outside mutation handlers.`)
